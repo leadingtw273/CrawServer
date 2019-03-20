@@ -1,0 +1,36 @@
+{
+    "name": "craw_server",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "start": "tsc && node dist/app.js",
+        "watch-server": "nodemon --watch 'src/**/*' -e ts,tsx --exec 'ts-node' ./src/app.ts"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "cheerio": "^1.0.0-rc.2",
+        "koa": "^2.7.0",
+        "koa-router": "^7.4.0",
+        "request": "^2.88.0",
+        "request-promise": "^4.2.4"
+    },
+    "devDependencies": {
+        "@types/cheerio": "^0.22.11",
+        "@types/koa": "^2.0.48",
+        "@types/koa-router": "^7.0.40",
+        "@types/request": "^2.48.1",
+        "@types/request-promise": "^4.1.42",
+        "babel-eslint": "^10.0.1",
+        "eslint": "^5.15.3",
+        "eslint-config-alloy": "^1.4.2",
+        "eslint-config-prettier": "^4.1.0",
+        "eslint-plugin-prettier": "^3.0.1",
+        "eslint-plugin-typescript": "^0.14.0",
+        "prettier": "^1.16.4",
+        "typescript": "^3.3.3333",
+        "typescript-eslint-parser": "^22.0.0"
+    }
+}
