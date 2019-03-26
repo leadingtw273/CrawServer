@@ -1,20 +1,15 @@
 "use strict";
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : new P(function (resolve) { resolve(result.value); }).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
+// import * as Koa from 'koa';
+// import * as Router from 'koa-router';
 Object.defineProperty(exports, "__esModule", { value: true });
-const Koa = require("koa");
-const Router = require("koa-router");
-const app = new Koa();
-const router = new Router();
-router.get('/*', (ctx) => __awaiter(this, void 0, void 0, function* () {
-    ctx.body = 'Hello World!';
-}));
-app.use(router.routes());
-app.listen(3000);
-console.log('Server running on port 3000');
+// const app = new Koa();
+// const router = new Router();
+// router.get('/*', async ctx => {
+//     ctx.body = 'Hello World!';
+// });
+// app.use(router.routes());
+// app.listen(3000);
+// console.log('Server running on port 3000');
+const PTT_1 = require("./lib/PTT");
+const ptt = new PTT_1.default('CodeJob');
+ptt.test();

@@ -16,5 +16,18 @@
 
 import PTT from './lib/PTT';
 
+const opt = {
+    REGEXP: {
+        title: '發案',
+        not_have: ['已徵到', '已過期', '洽談中', '已結案', '已徵得', '已解決'],
+        or_have: ['node', '網頁', '爬蟲'],
+    },
+    DATA_COUNT: 5,
+};
+
 const ptt = new PTT('CodeJob');
-ptt.test();
+const test = async () => {
+    await ptt.setup();
+    await ptt.getSearchPost(84);
+};
+test();
