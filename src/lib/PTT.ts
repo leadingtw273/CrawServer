@@ -3,52 +3,86 @@ import * as cheerio from 'cheerio';
 import { URL } from 'url';
 import { PTT as PTT_DOM } from '../config/domParse';
 
-interface KeyWord {
-    title?: string;
+interface MatchParam {
+    have_Re?: boolean;
+    title?: string[];
     not_have?: string[];
     or_have?: string[];
 }
 
-class KeyWordRegx {
+interface SearchPost {
+    title: string;
+    url: string;
+    date: number;
+    keyWord?: string[];
+}
+
+class KeyWordRegx implements MatchParam {
+    public have_Re: boolean;
+    public title: string[];
+    public not_have: string[];
+    public or_have: string[];
     private regExp: RegExp;
 
-    constructor(opt: KeyWord) {
-        
+    constructor(opt: MatchParam) {
+        this.have_Re = opt.have_Re;
+        this.title = opt.title;
+        this.not_have = opt.not_have;
+        this.or_have = opt.or_have;
+
+        this.regExp = new RegExp(
+            `^${this.getHaveRe()}.*\\[${this.getTitleReg()}\\]${this.getNotHaveReg()}.*${this.getOrHaveReg()}.*`,
+            'gi'
+        );
     }
 
-    public filter(data: String): Boolean {
-        return true;
+    public filter(text: string): { pass: boolean; keyWord: string[] } {
+        const pass: boolean = this.regExp.test(text);
+        const keyWord: string[] = [];
+        if (RegExp.$1 !== '') keyWord.push(RegExp.$1);
+        if (RegExp.$2 !== '') keyWord.push(RegExp.$2);
+        return {
+            pass,
+            keyWord,
+        };
     }
 
-    private titleSet(title: string) {
-        return `.*\\[${title}\\].*`;
+    private getHaveRe(): string {
+        if (this.have_Re == null) return '';
+        return this.have_Re ? '' : '(?!Re: )';
     }
 
-    private notHaveSet(notHave: string[]) {
-        return notHave.reduce((acc, cur) => acc + (cur ? `(?!.*${cur})` : ''), '');
+    private getTitleReg(): string {
+        if (this.title == null) return '';
+        return `(${this.title.join('|')})`;
     }
 
-    private orHaveSet(orHave: string[]) {
-        return `(${orHave.join('|')}).*`;
+    private getOrHaveReg(): string {
+        if (this.or_have == null) return '';
+        return `(${this.or_have.join('|')})`;
+    }
+
+    private getNotHaveReg(): string {
+        if (this.not_have == null) return '';
+        return this.not_have.reduce((acc, cur) => acc + (cur ? `(?!.*${cur})` : ''), '');
     }
 }
 
 class PTT {
     private PTT_URL: URL;
-    private pageCount: number | undefined;
-    private postCount: number | undefined;
+    private pageCount: number;
+    private postCount: number;
 
     public constructor(kanban: string) {
         this.PTT_URL = new URL('https://www.ptt.cc/bbs/');
         this.PTT_URL.pathname += kanban;
     }
 
-    public async setup(): Promise<any> {
+    public async setup(): Promise<void> {
         try {
-            const $: Function = await this.getPageDom(this.PTT_URL);
+            const $: CheerioStatic = await this.getPageDom(this.PTT_URL);
             this.pageCount = this.getPageCount($);
             this.postCount = this.getPostCount($);
-            return $;
         } catch (err) {
             console.log(err);
         }
@@ -56,46 +90,66 @@ class PTT {
 
     public getPostDetail() {}
 
-    public async getSearchPost(dataCount: number, keyWord?: KeyWord) {
-        if (this.pageCount == null) throw Error('Must setup before use.');
+    public async getSearchPost(count: number, opt?: MatchParam): Promise<SearchPost[]> {
+        if (this.pageCount == null) throw Error('Must setup before use.'); // 若事前沒先執行 setup() 則報錯
 
-        let postList: Object[] = [];
-        let nextUrl: URL = this.PTT_URL;
+        let postList: SearchPost[] = []; // 篩選解果文章
+        let nextUrl: URL = this.PTT_URL; // 下一個頁面 URL
 
-        for (let bp = 0; postList.length < dataCount; bp++) {
-            const $: Function = await this.getPageDom(nextUrl);
+        // 若有關鍵字，則實體化關鍵字篩選類別
+        let KWregx: KeyWordRegx;
+        if (opt != null) KWregx = new KeyWordRegx(opt);
+
+        // 持續取得文章，直到大於等於 count
+        for (let prevPage = 0; postList.length < count; prevPage++) {
+            // 取得頁面 Dom
+            const $: CheerioStatic = await this.getPageDom(nextUrl);
+
+            // 進行篩選
             const list = $(PTT_DOM.POST_LIST)
-                .map((i: number, ele: any) => {
-                    const title = $(ele).text();
-
-                    const regex = new RegExp(/\.(\d{10,})\./);
-                    regex.test($(ele).attr('href'));
-                    const date = Number(RegExp.$1);
-
-                    const newUrl = new URL($(ele).attr('href'), this.PTT_URL.toString());
-                    const url = newUrl.toString();
-
-                    if (title === '') {
-                        return null;
-                    } else {
-                        return { title, url, date };
-                    }
+                .map((i: number, ele: CheerioElement) => {
+                    // 從 Dom 中爬取特定資料
+                    const { title, date, url }: SearchPost = this.crawlInfo($(ele));
+                    // 若該文章被刪除，則無法取得資料
+                    if (title === '') return null;
+                    // 若無關鍵字，則直接回傳資料
+                    if (opt == null) return { title, url, date };
+                    // 進行關鍵字篩選(正則)
+                    const { pass, keyWord }: { pass: boolean; keyWord: string[] } = KWregx.filter(title);
+                    return pass ? { title, url, date, keyWord } : null;
                 })
                 .get();
-            const nextPath = `${this.PTT_URL.pathname}/index${this.pageCount - bp}.html`;
+
+            // 取得預爬取下個頁面的 URL
+            const nextPath: string = `${this.PTT_URL.pathname}/index${this.pageCount - prevPage}.html`;
             nextUrl = new URL(nextPath, this.PTT_URL.toString());
+
+            // 蒐集篩選解果
             postList = postList.concat(list);
         }
 
+        // 進行文章排序，陣列 0 ~ n => 新 ~ 舊，並刪除最舊文章，直到等於 count 數量
         postList = postList
             .sort((a: { date: number }, b: { date: number }) => b.date - a.date)
-            .filter((val, i) => i < dataCount);
+            .filter((val, i) => i < count);
 
-        console.log(postList);
-        console.log(postList.length);
+        return postList;
     }
 
-    private async getPageDom(url: URL): Promise<Function> {
+    private crawlInfo($: Cheerio): SearchPost {
+        const title = $.text();
+
+        const regex = new RegExp(/\.(\d{10,})\./);
+        regex.test($.attr('href'));
+        const date = Number(RegExp.$1);
+
+        const newUrl = new URL($.attr('href'), this.PTT_URL.toString());
+        const url = newUrl.toString();
+
+        return { title, date, url };
+    }
+
+    private async getPageDom(url: URL): Promise<CheerioStatic> {
         return await request({
             uri: url.href,
             headers: {
@@ -107,8 +161,8 @@ class PTT {
         });
     }
 
-    private getPageCount($: Function): number {
-        const regex = new RegExp(/index(\d+)\.html$/);
+    private getPageCount($: CheerioStatic): number {
+        const regex: RegExp = new RegExp(/index(\d+)\.html$/);
         const fileName: string = $(PTT_DOM.PREVIOUS_PAGE_BTN).attr('href');
         regex.test(fileName);
 
@@ -116,7 +170,7 @@ class PTT {
         return Number(RegExp.$1);
     }
 
-    private getPostCount($: Function): number {
+    private getPostCount($: CheerioStatic): number {
         if (this.pageCount == null) this.pageCount = this.getPageCount($);
         return $(PTT_DOM.POST_LIST).length + this.pageCount * 20;
     }
