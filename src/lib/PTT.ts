@@ -54,7 +54,7 @@ class KeyWordRegx implements MatchParam {
     }
 
     private getTitleReg(): string {
-        if (this.title == null) return '';
+        if (this.title == null) return '.*';
         return `(${this.title.join('|')})`;
     }
 
@@ -79,17 +79,20 @@ class PTT {
         this.PTT_URL.pathname += kanban;
     }
 
-    public async setup(): Promise<void> {
+    public async setup(): Promise<{ pages: number; posts: number }> {
         try {
             const $: CheerioStatic = await this.getPageDom(this.PTT_URL);
             this.pageCount = this.getPageCount($);
             this.postCount = this.getPostCount($);
+            return {
+                pages: this.pageCount,
+                posts: this.postCount,
+            };
         } catch (err) {
             console.log(err);
+            return err;
         }
     }
-
-    public getPostDetail() {}
 
     public async getSearchPost(count: number, opt?: MatchParam): Promise<SearchPost[]> {
         if (this.pageCount == null) throw Error('Must setup before use.'); // 若事前沒先執行 setup() 則報錯
@@ -102,7 +105,7 @@ class PTT {
         if (opt != null) KWregx = new KeyWordRegx(opt);
 
         // 持續取得文章，直到大於等於 count
-        for (let prevPage = 0; postList.length < count; prevPage++) {
+        for (let prevPage = 1; postList.length < count && prevPage < 51; prevPage++) {
             // 取得頁面 Dom
             const $: CheerioStatic = await this.getPageDom(nextUrl);
 
@@ -138,19 +141,23 @@ class PTT {
     }
 
     private crawlInfo($: Cheerio): SearchPost {
-        const commentsString: string = $.prev('.nrec').text();
-        const regexComments: RegExp = new RegExp(/\d+/);
-        const isNumber: boolean = regexComments.test(commentsString);
-        const comments: number | string = isNumber ? Number(commentsString) : commentsString === '' ? 0 : 'max';
-
+        // 擷取標題
         const title: string = $.children('a').text();
 
+        // 擷取刊登時間(TimeStamp)
         const regexDate: RegExp = new RegExp(/\.(\d{10,})\./);
         regexDate.test($.children('a').attr('href'));
         const date: number = Number(RegExp.$1);
 
+        // 擷取網址
         const newUrl: URL = new URL($.children('a').attr('href'), this.PTT_URL.toString());
         const url: string = newUrl.toString();
+
+        // 擷取留言數量
+        const commentsString: string = $.prev('.nrec').text();
+        const regexComments: RegExp = new RegExp(/\d+/);
+        const isNumber: boolean = regexComments.test(commentsString);
+        const comments: number | string = isNumber ? Number(commentsString) : commentsString === '' ? 0 : 'max';
 
         return { title, date, url, comments };
     }
@@ -173,7 +180,7 @@ class PTT {
         regex.test(fileName);
 
         if (RegExp.$1 == null) throw Error("Can't get page index.");
-        return Number(RegExp.$1);
+        return Number(RegExp.$1) + 1;
     }
 
     private getPostCount($: CheerioStatic): number {

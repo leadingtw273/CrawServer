@@ -25,8 +25,9 @@ const opt = {
 
 const ptt = new PTT('CodeJob');
 const test = async () => {
-    await ptt.setup();
-    const data = await ptt.getSearchPost(5, opt);
+    const detail: { posts: number; pages: number } = await ptt.setup();
+    const data: any = await ptt.getSearchPost(5, opt);
+    console.log(detail);
     console.log(data);
 };
 test();
