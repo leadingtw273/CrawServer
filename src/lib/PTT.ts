@@ -14,14 +14,15 @@ interface SearchPost {
     title: string;
     url: string;
     date: number;
+    comments: string | number;
     keyWord?: string[];
 }
 
 class KeyWordRegx implements MatchParam {
-    public have_Re: boolean;
-    public title: string[];
-    public not_have: string[];
-    public or_have: string[];
+    public have_Re: boolean | undefined;
+    public title: string[] | undefined;
+    public not_have: string[] | undefined;
+    public or_have: string[] | undefined;
     private regExp: RegExp;
 
     constructor(opt: MatchParam) {
@@ -70,8 +71,8 @@ class KeyWordRegx implements MatchParam {
 
 class PTT {
     private PTT_URL: URL;
-    private pageCount: number;
-    private postCount: number;
+    private pageCount: number | undefined;
+    private postCount: number | undefined;
 
     public constructor(kanban: string) {
         this.PTT_URL = new URL('https://www.ptt.cc/bbs/');
@@ -109,14 +110,14 @@ class PTT {
             const list = $(PTT_DOM.POST_LIST)
                 .map((i: number, ele: CheerioElement) => {
                     // 從 Dom 中爬取特定資料
-                    const { title, date, url }: SearchPost = this.crawlInfo($(ele));
+                    const post: SearchPost = this.crawlInfo($(ele));
                     // 若該文章被刪除，則無法取得資料
-                    if (title === '') return null;
+                    if (post.title === '') return null;
                     // 若無關鍵字，則直接回傳資料
-                    if (opt == null) return { title, url, date };
+                    if (opt == null) return post;
                     // 進行關鍵字篩選(正則)
-                    const { pass, keyWord }: { pass: boolean; keyWord: string[] } = KWregx.filter(title);
-                    return pass ? { title, url, date, keyWord } : null;
+                    const { pass, keyWord }: { pass: boolean; keyWord: string[] } = KWregx.filter(post.title);
+                    return pass ? { ...post, keyWord } : null;
                 })
                 .get();
 
@@ -137,16 +138,21 @@ class PTT {
     }
 
     private crawlInfo($: Cheerio): SearchPost {
-        const title = $.text();
+        const commentsString: string = $.prev('.nrec').text();
+        const regexComments: RegExp = new RegExp(/\d+/);
+        const isNumber: boolean = regexComments.test(commentsString);
+        const comments: number | string = isNumber ? Number(commentsString) : commentsString === '' ? 0 : 'max';
 
-        const regex = new RegExp(/\.(\d{10,})\./);
-        regex.test($.attr('href'));
-        const date = Number(RegExp.$1);
+        const title: string = $.children('a').text();
 
-        const newUrl = new URL($.attr('href'), this.PTT_URL.toString());
-        const url = newUrl.toString();
+        const regexDate: RegExp = new RegExp(/\.(\d{10,})\./);
+        regexDate.test($.children('a').attr('href'));
+        const date: number = Number(RegExp.$1);
 
-        return { title, date, url };
+        const newUrl: URL = new URL($.children('a').attr('href'), this.PTT_URL.toString());
+        const url: string = newUrl.toString();
+
+        return { title, date, url, comments };
     }
 
     private async getPageDom(url: URL): Promise<CheerioStatic> {
