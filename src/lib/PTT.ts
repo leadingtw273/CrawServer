@@ -25,12 +25,11 @@ class KeyWordRegx implements MatchParam {
     public or_have: string[] | undefined;
     private regExp: RegExp;
 
-    constructor(opt: MatchParam) {
+    constructor(opt: MatchParam = {}) {
         this.have_Re = opt.have_Re;
         this.title = opt.title;
         this.not_have = opt.not_have;
         this.or_have = opt.or_have;
-
         this.regExp = new RegExp(
             `^${this.getHaveRe()}.*\\[${this.getTitleReg()}\\]${this.getNotHaveReg()}.*${this.getOrHaveReg()}.*`,
             'gi'
@@ -71,15 +70,20 @@ class KeyWordRegx implements MatchParam {
 
 class PTT {
     private PTT_URL: URL;
+    public pageLimit: number;
+    public postLimit: number;
     private pageCount: number | undefined;
     private postCount: number | undefined;
 
-    public constructor(kanban: string) {
+    public constructor(pageLimit: number = 50, postLimit: number = 10) {
         this.PTT_URL = new URL('https://www.ptt.cc/bbs/');
-        this.PTT_URL.pathname += kanban;
+        this.pageLimit = pageLimit;
+        this.postLimit = postLimit;
     }
 
-    public async setup(): Promise<{ pages: number; posts: number }> {
+    public async setup(kanban: string): Promise<{ pages: number; posts: number }> {
+        this.PTT_URL.pathname = '/bbs/' + kanban;
+
         try {
             const $: CheerioStatic = await this.getPageDom(this.PTT_URL);
             this.pageCount = this.getPageCount($);
@@ -89,23 +93,21 @@ class PTT {
                 posts: this.postCount,
             };
         } catch (err) {
-            console.log(err);
-            return err;
+            throw err;
         }
     }
 
-    public async getSearchPost(count: number, opt?: MatchParam): Promise<SearchPost[]> {
+    public async getSearchPost(matchParam?: MatchParam): Promise<SearchPost[]> {
         if (this.pageCount == null) throw Error('Must setup before use.'); // 若事前沒先執行 setup() 則報錯
 
         let postList: SearchPost[] = []; // 篩選解果文章
         let nextUrl: URL = this.PTT_URL; // 下一個頁面 URL
 
         // 若有關鍵字，則實體化關鍵字篩選類別
-        let KWregx: KeyWordRegx;
-        if (opt != null) KWregx = new KeyWordRegx(opt);
+        const KWregx: KeyWordRegx = new KeyWordRegx(matchParam);
 
-        // 持續取得文章，直到大於等於 count
-        for (let prevPage = 1; postList.length < count && prevPage < 51; prevPage++) {
+        // 持續取得文章，直到大於等於 postLimit
+        for (let prevPage = 1; postList.length < this.postLimit && prevPage <= this.pageLimit; prevPage++) {
             // 取得頁面 Dom
             const $: CheerioStatic = await this.getPageDom(nextUrl);
 
@@ -117,7 +119,7 @@ class PTT {
                     // 若該文章被刪除，則無法取得資料
                     if (post.title === '') return null;
                     // 若無關鍵字，則直接回傳資料
-                    if (opt == null) return post;
+                    if (matchParam == null) return post;
                     // 進行關鍵字篩選(正則)
                     const { pass, keyWord }: { pass: boolean; keyWord: string[] } = KWregx.filter(post.title);
                     return pass ? { ...post, keyWord } : null;
@@ -135,7 +137,7 @@ class PTT {
         // 進行文章排序，陣列 0 ~ n => 新 ~ 舊，並刪除最舊文章，直到等於 count 數量
         postList = postList
             .sort((a: { date: number }, b: { date: number }) => b.date - a.date)
-            .filter((val, i) => i < count);
+            .filter((val, i) => i < this.postLimit);
 
         return postList;
     }
@@ -189,4 +191,4 @@ class PTT {
     }
 }
 
-export default PTT;
+export { PTT, MatchParam, SearchPost };
