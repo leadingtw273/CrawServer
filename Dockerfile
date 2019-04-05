@@ -8,8 +8,8 @@ RUN npm run build
 
 FROM keymetrics/pm2:latest-alpine as production-stage
 COPY --from=build-stage /app/dist ./dist
-COPY package*.json .
-COPY pm2.config.js .
+COPY package*.json ./
+COPY pm2.config.js ./
 
 RUN npm install --production
 
