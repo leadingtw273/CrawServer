@@ -30,7 +30,7 @@ router
         }
 
         try {
-            const kanbanDetail: { pages: number; posts: number } = await ptt.setup(ctx.params.kanban);
+            const kanbanDetail: { pages: number; posts: number } = await ptt.setupKanban(ctx.params.kanban);
             ctx.kanban = ctx.params.kanban;
             ctx.searchParam = Object.keys(searchParam).length > 0 ? searchParam : undefined;
             ctx.kanbanDetail = kanbanDetail;

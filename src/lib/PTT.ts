@@ -81,11 +81,11 @@ class PTT {
         this.postLimit = postLimit;
     }
 
-    public async setup(kanban: string): Promise<{ pages: number; posts: number }> {
+    public async setupKanban(kanban: string): Promise<{ pages: number; posts: number }> {
         this.PTT_URL.pathname = '/bbs/' + kanban;
 
         try {
-            const $: CheerioStatic = await this.getPageDom(this.PTT_URL);
+            const $: CheerioStatic = await this.requestPageDom(this.PTT_URL);
             this.pageCount = this.getPageCount($);
             this.postCount = this.getPostCount($);
             return {
@@ -109,13 +109,13 @@ class PTT {
         // 持續取得文章，直到大於等於 postLimit
         for (let prevPage = 1; postList.length < this.postLimit && prevPage <= this.pageLimit; prevPage++) {
             // 取得頁面 Dom
-            const $: CheerioStatic = await this.getPageDom(nextUrl);
+            const $: CheerioStatic = await this.requestPageDom(nextUrl);
 
             // 進行篩選
             const list = $(PTT_DOM.POST_LIST)
                 .map((i: number, ele: CheerioElement) => {
                     // 從 Dom 中爬取特定資料
-                    const post: SearchPost = this.crawlInfo($(ele));
+                    const post: SearchPost = this.crawlDataFromDom($(ele));
                     // 若該文章被刪除，則無法取得資料
                     if (post.title === '') return null;
                     // 若無關鍵字，則直接回傳資料
@@ -142,7 +142,7 @@ class PTT {
         return postList;
     }
 
-    private crawlInfo($: Cheerio): SearchPost {
+    private crawlDataFromDom($: Cheerio): SearchPost {
         // 擷取標題
         const title: string = $.children('a').text();
 
@@ -164,7 +164,7 @@ class PTT {
         return { title, date, url, comments };
     }
 
-    private async getPageDom(url: URL): Promise<CheerioStatic> {
+    private async requestPageDom(url: URL): Promise<CheerioStatic> {
         return await request({
             uri: url.href,
             headers: {
