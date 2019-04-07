@@ -69,45 +69,48 @@ class KeyWordRegx implements MatchParam {
 }
 
 class PTT {
-    private PTT_URL: URL;
-    public pageLimit: number;
-    public postLimit: number;
-    private pageCount: number | undefined;
-    private postCount: number | undefined;
+    readonly PPT_BASE_URL: string = 'https://www.ptt.cc/bbs/';
+    public searchPageLimit: number;
+    public searchPostLimit: number;
+    public KANBAN_URL: URL | undefined;
+    public kanbanPageCount: number | undefined;
+    public kanbanPostCount: number | undefined;
 
     public constructor(pageLimit: number = 50, postLimit: number = 10) {
-        this.PTT_URL = new URL('https://www.ptt.cc/bbs/');
-        this.pageLimit = pageLimit;
-        this.postLimit = postLimit;
+        this.searchPageLimit = pageLimit;
+        this.searchPostLimit = postLimit;
     }
 
-    public async setupKanban(kanban: string): Promise<{ pages: number; posts: number }> {
-        this.PTT_URL.pathname = '/bbs/' + kanban;
-
-        try {
-            const $: CheerioStatic = await this.requestPageDom(this.PTT_URL);
-            this.pageCount = this.getPageCount($);
-            this.postCount = this.getPostCount($);
-            return {
-                pages: this.pageCount,
-                posts: this.postCount,
-            };
-        } catch (err) {
-            throw err;
-        }
+    public async initKanban(kanban: string): Promise<void> {
+        const kanbanUrl = new URL(this.PPT_BASE_URL + kanban);
+        const { pageCount, postCount }: { pageCount: number; postCount: number } = await this.crawlKanbanDetail(
+            kanbanUrl
+        );
+        this.kanbanPageCount = pageCount;
+        this.kanbanPostCount = postCount;
+        this.KANBAN_URL = kanbanUrl;
     }
 
-    public async getSearchPost(matchParam?: MatchParam): Promise<SearchPost[]> {
-        if (this.pageCount == null) throw Error('Must setup before use.'); // 若事前沒先執行 setup() 則報錯
+    private async crawlKanbanDetail(kanbanUrl: URL): Promise<{ pageCount: number; postCount: number }> {
+        const $: CheerioStatic = await this.requestPageDom(kanbanUrl);
+        return {
+            pageCount: this.getPageCount($),
+            postCount: this.getPostCount($),
+        };
+    }
+
+    public async searchPost(matchParam?: MatchParam): Promise<SearchPost[]> {
+        if (this.KANBAN_URL == null) throw Error('Must initKanban before use.'); // 若事前沒先執行 setup() 則報錯
+        if (this.kanbanPageCount == null) throw Error('Must initKanban before use.'); // 若事前沒先執行 setup() 則報錯
 
         let postList: SearchPost[] = []; // 篩選解果文章
-        let nextUrl: URL = this.PTT_URL; // 下一個頁面 URL
+        let nextUrl: URL = this.KANBAN_URL; // 下一個頁面 URL
 
         // 若有關鍵字，則實體化關鍵字篩選類別
         const KWregx: KeyWordRegx = new KeyWordRegx(matchParam);
 
         // 持續取得文章，直到大於等於 postLimit
-        for (let prevPage = 1; postList.length < this.postLimit && prevPage <= this.pageLimit; prevPage++) {
+        for (let prevPage = 1; postList.length < this.searchPostLimit && prevPage <= this.searchPageLimit; prevPage++) {
             // 取得頁面 Dom
             const $: CheerioStatic = await this.requestPageDom(nextUrl);
 
@@ -127,8 +130,8 @@ class PTT {
                 .get();
 
             // 取得預爬取下個頁面的 URL
-            const nextPath: string = `${this.PTT_URL.pathname}/index${this.pageCount - prevPage}.html`;
-            nextUrl = new URL(nextPath, this.PTT_URL.toString());
+            const nextPath: string = `${this.KANBAN_URL.pathname}/index${this.kanbanPageCount - prevPage}.html`;
+            nextUrl = new URL(nextPath, this.KANBAN_URL.toString());
 
             // 蒐集篩選解果
             postList = postList.concat(list);
@@ -137,7 +140,7 @@ class PTT {
         // 進行文章排序，陣列 0 ~ n => 新 ~ 舊，並刪除最舊文章，直到等於 count 數量
         postList = postList
             .sort((a: { date: number }, b: { date: number }) => b.date - a.date)
-            .filter((val, i) => i < this.postLimit);
+            .filter((val, i) => i < this.searchPostLimit);
 
         return postList;
     }
@@ -152,7 +155,7 @@ class PTT {
         const date: number = Number(RegExp.$1);
 
         // 擷取網址
-        const newUrl: URL = new URL($.children('a').attr('href'), this.PTT_URL.toString());
+        const newUrl: URL = new URL($.children('a').attr('href'), this.PPT_BASE_URL);
         const url: string = newUrl.toString();
 
         // 擷取留言數量
@@ -165,15 +168,19 @@ class PTT {
     }
 
     private async requestPageDom(url: URL): Promise<CheerioStatic> {
-        return await request({
-            uri: url.href,
-            headers: {
-                Cookie: 'over18=1',
-            },
-            transform(body: string) {
-                return cheerio.load(body);
-            },
-        });
+        try {
+            return await request({
+                uri: url.href,
+                headers: {
+                    Cookie: 'over18=1',
+                },
+                transform(body: string) {
+                    return cheerio.load(body);
+                },
+            });
+        } catch (err) {
+            throw err;
+        }
     }
 
     private getPageCount($: CheerioStatic): number {
@@ -186,8 +193,8 @@ class PTT {
     }
 
     private getPostCount($: CheerioStatic): number {
-        if (this.pageCount == null) this.pageCount = this.getPageCount($);
-        return $(PTT_DOM.POST_LIST).length + this.pageCount * 20;
+        if (this.kanbanPageCount == null) this.kanbanPageCount = this.getPageCount($);
+        return $(PTT_DOM.POST_LIST).length + this.kanbanPageCount * 20;
     }
 }
 

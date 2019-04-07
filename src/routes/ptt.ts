@@ -30,10 +30,13 @@ router
         }
 
         try {
-            const kanbanDetail: { pages: number; posts: number } = await ptt.setupKanban(ctx.params.kanban);
+            await ptt.initKanban(ctx.params.kanban);
             ctx.kanban = ctx.params.kanban;
             ctx.searchParam = Object.keys(searchParam).length > 0 ? searchParam : undefined;
-            ctx.kanbanDetail = kanbanDetail;
+            ctx.kanbanDetail = {
+                pageCount: ptt.kanbanPageCount,
+                postCount: ptt.kanbanPostCount,
+            };
             await next();
         } catch (error) {
             console.log('use => ', error);
@@ -41,17 +44,20 @@ router
     })
     .get('/crawl/:kanban', async ctx => {
         try {
-            const data: SearchPost[] = await ptt.getSearchPost(ctx.searchParam);
+            const data: SearchPost[] = await ptt.searchPost(ctx.searchParam);
             console.log(data);
             ctx.body = data;
         } catch (error) {
             console.log('get: /:kanban => ', error);
         }
     })
+    .get('/crawl/:kanban/detail', async ctx => {
+        ctx.body = ctx.kanbanDetail;
+    })
     .post('/setting', async ctx => {
         const { pageLimit, postLimit }: { pageLimit: number; postLimit: number } = ctx.request.body;
-        if (postLimit != null) ptt.postLimit = postLimit;
-        if (pageLimit != null) ptt.pageLimit = pageLimit;
+        if (postLimit != null) ptt.searchPostLimit = postLimit;
+        if (pageLimit != null) ptt.searchPageLimit = pageLimit;
         ctx.body = 'ok';
     });
 
