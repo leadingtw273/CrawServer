@@ -19,10 +19,10 @@ interface SearchPost {
 }
 
 class KeyWordRegx implements MatchParam {
-    public have_Re: boolean | undefined;
-    public title: string[] | undefined;
-    public not_have: string[] | undefined;
-    public or_have: string[] | undefined;
+    public have_Re?: boolean;
+    public title?: string[];
+    public not_have?: string[];
+    public or_have?: string[];
     private regExp: RegExp;
 
     constructor(opt: MatchParam = {}) {
@@ -72,9 +72,9 @@ class PTT {
     readonly PPT_BASE_URL: string = 'https://www.ptt.cc/bbs/';
     public searchPageLimit: number;
     public searchPostLimit: number;
-    public KANBAN_URL: URL | undefined;
-    public kanbanPageCount: number | undefined;
-    public kanbanPostCount: number | undefined;
+    public KANBAN_URL?: URL;
+    public kanbanPageCount?: number;
+    public kanbanPostCount?: number;
 
     public constructor(pageLimit: number = 50, postLimit: number = 10) {
         this.searchPageLimit = pageLimit;

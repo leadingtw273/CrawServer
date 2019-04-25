@@ -29,10 +29,13 @@ router
         searchParam.not_have = not_have.split(',').map((ele) => ele.trim());
     }
     try {
-        const kanbanDetail = yield ptt.setup(ctx.params.kanban);
+        yield ptt.initKanban(ctx.params.kanban);
         ctx.kanban = ctx.params.kanban;
         ctx.searchParam = Object.keys(searchParam).length > 0 ? searchParam : undefined;
-        ctx.kanbanDetail = kanbanDetail;
+        ctx.kanbanDetail = {
+            pageCount: ptt.kanbanPageCount,
+            postCount: ptt.kanbanPostCount,
+        };
         yield next();
     }
     catch (error) {
@@ -41,7 +44,7 @@ router
 }))
     .get('/crawl/:kanban', (ctx) => __awaiter(this, void 0, void 0, function* () {
     try {
-        const data = yield ptt.getSearchPost(ctx.searchParam);
+        const data = yield ptt.searchPost(ctx.searchParam);
         console.log(data);
         ctx.body = data;
     }
@@ -49,12 +52,15 @@ router
         console.log('get: /:kanban => ', error);
     }
 }))
+    .get('/crawl/:kanban/detail', (ctx) => __awaiter(this, void 0, void 0, function* () {
+    ctx.body = ctx.kanbanDetail;
+}))
     .post('/setting', (ctx) => __awaiter(this, void 0, void 0, function* () {
     const { pageLimit, postLimit } = ctx.request.body;
     if (postLimit != null)
-        ptt.postLimit = postLimit;
+        ptt.searchPostLimit = postLimit;
     if (pageLimit != null)
-        ptt.pageLimit = pageLimit;
+        ptt.searchPageLimit = pageLimit;
     ctx.body = 'ok';
 }));
 exports.default = router;
